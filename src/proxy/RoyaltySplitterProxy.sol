@@ -17,4 +17,6 @@ contract RoyaltySplitterProxy is ERC1967Proxy {
     function implementation() external view returns (address) {
         return _implementation();
     }
+
+    receive() external payable {}
 }

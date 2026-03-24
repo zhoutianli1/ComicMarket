@@ -29,6 +29,9 @@ interface IComicNFT {
         uint256 parentTokenId
     ) external returns (uint256 tokenId);
 
+    /// @notice 销毁漫画 NFT
+    function burn(uint256 tokenId) external;
+
     /// @notice 更新漫画 NFT 的二级市场版税信息，只有创作者或授权的管理员可以调用
     function updateSecondaryRoyalty(uint256 tokenId, uint16 newBps) external;
     /// @notice 更新漫画 NFT 的衍生品分成信息，只有创作者或授权的管理员可以调用
