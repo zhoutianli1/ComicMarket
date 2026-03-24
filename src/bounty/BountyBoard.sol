@@ -121,7 +121,7 @@ contract BountyBoard is
         emit BountyCreated(bountyId, msg.sender, tokenId, taskType, reward, paymentToken, deadline);
     }
 
-    // ─── 2. 申请认领 ──────────────────────────────────────────────────────
+    // ─── 2. 申请悬赏任务 ──────────────────────────────────────────────────────
 
     /// @notice 贡献者申请认领，需支付赏金 1/10 作为保证金，在调用函数时附带保证金金额
     /// @param bountyId 悬赏任务 ID
@@ -251,7 +251,8 @@ contract BountyBoard is
     // ─── 内部支付工具 ─────────────────────────────────────────────────────
 
     function _payAssignee(DataTypes.BountyTask storage bounty, uint256 bountyId) internal {
-        uint256 total = bounty.reward + _deposits[bountyId][bounty.assignee];
+        uint256 deposit = _deposits[bountyId][bounty.assignee];
+        uint256 total = bounty.reward + deposit;
         _deposits[bountyId][bounty.assignee] = 0;
 
         if (bounty.paymentToken == address(0)) {
@@ -279,6 +280,10 @@ contract BountyBoard is
 
     function getApplicants(uint256 bountyId) external view returns (address[] memory) {
         return _applicants[bountyId];
+    }
+
+    function getApplicantsCount(uint256 bountyId) external view returns (uint256) {
+        return _applicants[bountyId].length;
     }
 
     function hasApplied(uint256 bountyId, address applicant) external view returns (bool) {

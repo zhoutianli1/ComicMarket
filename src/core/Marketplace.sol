@@ -156,13 +156,16 @@ contract Marketplace is
         external payable override
         whenNotPaused nonReentrant
     {
-        if (listingIds.length > MAX_BATCH_SIZE)
-            revert Errors.BatchSizeExceeded(listingIds.length, MAX_BATCH_SIZE);
+        uint256 length = listingIds.length;
+        if (length > MAX_BATCH_SIZE)
+            revert Errors.BatchSizeExceeded(length, MAX_BATCH_SIZE);
 
-        for (uint256 i; i < listingIds.length; ++i) {
-            if (_listings[listingIds[i]].active) {
-                _executeBuy(listingIds[i], msg.sender);
+        for (uint256 i; i < length; ) {
+            uint256 listingId = listingIds[i];
+            if (_listings[listingId].active) {
+                _executeBuy(listingId, msg.sender);
             }
+            unchecked { ++i; }
         }
     }
 
@@ -308,7 +311,8 @@ contract Marketplace is
     }
 
     /// @notice 出价（拍卖）
-    //用户出价是通过 msg.value 发送 ETH，或通过 bidERC20 函数发送 ERC20 代币
+    /// @dev 1. 起拍价：用户出价是通过 msg.value 发送 ETH，或通过 bid 函数发送 ERC20 代币
+    ///      2. 最低加价：每次加价必须是当前最高出价的 105%
     function bid(uint256 auctionId, uint256 amount)
         external payable override
         whenNotPaused nonReentrant validAuction(auctionId)
@@ -350,6 +354,8 @@ contract Marketplace is
     }
 
     /// @notice 结算拍卖（任何人可调用，拍卖结束后）
+    /// @dev 1. 未达保留价：退款给出价者，NFT 归还卖家
+    ///      2. 成交：转移 NFT + 拆分版税
     function settleAuction(uint256 auctionId)
         external override nonReentrant
     {
@@ -362,10 +368,19 @@ contract Marketplace is
 
         // 未达保留价：退款给出价者，NFT 归还卖家
         if (auction.currentBid < auction.reservePrice || auction.currentBidder == address(0)) {
+            // 退还出价（如果存在）
             if (auction.currentBidder != address(0) && auction.currentBid > 0) {
-                (bool ok,) = payable(auction.currentBidder).call{value: auction.currentBid}("");
-                if (!ok) revert Errors.TransferFailed(auction.currentBidder, auction.currentBid);
+                // 退还出价（ETH 或 ERC20）
+                if (auction.paymentToken == address(0)) {
+                    (bool ok,) = payable(auction.currentBidder).call{value: auction.currentBid}("");
+                    if (!ok) revert Errors.TransferFailed(auction.currentBidder, auction.currentBid);
+                } else {
+                    IERC20(auction.paymentToken).safeTransfer(auction.currentBidder, auction.currentBid);
+                }
             }
+            // NFT 归还卖家
+            IERC721(auction.nftContract).transferFrom(address(this), auction.seller, auction.tokenId);
+
             emit AuctionSettled(auctionId, address(0), 0);
             return;
         }

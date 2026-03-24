@@ -76,10 +76,7 @@ contract RoyaltySplitter is
     function pause()   external onlyOwner { _pause(); }
     function unpause() external onlyOwner { _unpause(); }
 
-    function setMarketplaceContract(address marketplace) external onlyOwner {
-        if (marketplace == address(0)) revert Errors.ZeroAddress();
-        marketplaceContract = marketplace;
-    }
+ 
 
     // ─── 核心：分配版税 ────────────────────────────────────────────────────
 
@@ -185,21 +182,23 @@ contract RoyaltySplitter is
 
     /// @notice 批量提取多种代币
     function batchWithdraw(address[] calldata paymentTokens) external nonReentrant {
-        for (uint256 i; i < paymentTokens.length; ++i) {
+        uint256 length = paymentTokens.length;
+        for (uint256 i; i < length; ) {
             address token = paymentTokens[i];
             uint256 amount = pendingWithdrawals[msg.sender][token];
-            if (amount == 0) continue;
+            if (amount != 0) {
+                pendingWithdrawals[msg.sender][token] = 0;
 
-            pendingWithdrawals[msg.sender][token] = 0;
+                if (token == address(0)) {
+                    (bool ok,) = payable(msg.sender).call{value: amount}("");
+                    if (!ok) revert Errors.TransferFailed(msg.sender, amount);
+                } else {
+                    IERC20(token).safeTransfer(msg.sender, amount);
+                }
 
-            if (token == address(0)) {
-                (bool ok,) = payable(msg.sender).call{value: amount}("");
-                if (!ok) revert Errors.TransferFailed(msg.sender, amount);
-            } else {
-                IERC20(token).safeTransfer(msg.sender, amount);
+                emit Withdrawn(msg.sender, token, amount);
             }
-
-            emit Withdrawn(msg.sender, token, amount);
+            unchecked { ++i; }
         }
     }
 
@@ -212,7 +211,10 @@ contract RoyaltySplitter is
     }
 
     // ─── 配置 ──────────────────────────────────────────────────────────────
-
+   function setMarketplaceContract(address marketplace) external onlyOwner {
+        if (marketplace == address(0)) revert Errors.ZeroAddress();
+        marketplaceContract = marketplace;
+    }
     function setPlatformTreasury(address newTreasury) external onlyOwner {
         if (newTreasury == address(0)) revert Errors.ZeroAddress();
         platformTreasury = newTreasury;

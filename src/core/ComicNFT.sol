@@ -121,15 +121,17 @@ contract ComicNFT is
             
             // 校验授权：msg.sender 必须在原作的已批准授权名单中
             bool isAuthorized = false;
-            uint256[] memory licenses = _tokenLicenses[parentTokenId];
-            for (uint256 i = 0; i < licenses.length; i++) {
-                DataTypes.LicenseGrant memory grant = _licenses[licenses[i]];
+            uint256[] storage licenses = _tokenLicenses[parentTokenId];
+            uint256 licenseLength = licenses.length;
+            for (uint256 i; i < licenseLength; ) {
+                DataTypes.LicenseGrant storage grant = _licenses[licenses[i]];
                 if (grant.licensee == msg.sender && grant.status == DataTypes.LicenseStatus.Approved) {
                     if (grant.expiresAt == 0 || grant.expiresAt > block.timestamp) {
                         isAuthorized = true;
                         break;
                     }
                 }
+                unchecked { ++i; }
             }
             if (!isAuthorized) revert Errors.Unauthorized();
 
@@ -184,11 +186,9 @@ contract ComicNFT is
 
     /// @notice 创作者更新衍生品分成比例
     function updateDerivativeShare(uint256 tokenId, uint16 newBps)
-        external override tokenExists(tokenId)
+        external override tokenExists(tokenId) onlyTokenOwner(tokenId)
     {
-        DataTypes.ComicInfo storage info = _comicInfo[tokenId];
-        if (info.creator != msg.sender) revert Errors.Unauthorized();
-        info.derivativeShareBps = newBps;
+        _comicInfo[tokenId].derivativeShareBps = newBps;
         emit DerivativeShareUpdated(tokenId, newBps);
     }
 
