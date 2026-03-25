@@ -24,19 +24,25 @@ import { CrossChainBridgeProxy } from "../src/proxy/CrossChainBridgeProxy.sol";
 ///     --verify
 contract Deploy is Script {
 
-    // ── 从环境变量读取配置 ──
+    address CCIP_ROUTER      = vm.envOr("CCIP_ROUTER",      address(0));
+
+    // ── 从环境变量读取配置，需要手动输入 
     address OWNER            = vm.envAddress("OWNER_ADDRESS");
     address PLATFORM_TREASURY = vm.envAddress("PLATFORM_TREASURY");
-    address CCIP_ROUTER      = vm.envOr("CCIP_ROUTER",      address(0));
     address UNISWAP_ROUTER   = vm.envOr("UNISWAP_ROUTER",   address(0));
 
     function run() external {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
+        if (deployerKey == 0) {
+            revert("PRIVATE_KEY not found in .env");
+        }
         vm.startBroadcast(deployerKey);
 
         console.log(unicode"=== 开始部署去中心化漫画市场合约 ===");
         console.log("Owner:            ", OWNER);
         console.log("Platform Treasury:", PLATFORM_TREASURY);
+        console.log("CCIP Router:      ", CCIP_ROUTER);
+        console.log("Uniswap Router:   ", UNISWAP_ROUTER);
 
         // ── Step 1: 部署逻辑合约 ──
         ComicNFT        comicNFTImpl      = new ComicNFT();

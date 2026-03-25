@@ -88,21 +88,31 @@ contract ComicMarketTest is Test {
             false, 0
         );
 
-        assertEq(tokenId, 1);
-        assertEq(comicNFT.ownerOf(tokenId), creator);
+        assertEq(tokenId, 1);// 铸造的 tokenId 应该是 1
+        assertEq(comicNFT.ownerOf(tokenId), creator);// 铸造的 token 应该是 creator 所有
 
-        DataTypes.ComicInfo memory info = comicNFT.getComicInfo(tokenId);
+        DataTypes.ComicInfo memory info = comicNFT.getComicInfo(tokenId);// 获取 tokenId 对应的 ComicInfo
         assertEq(info.creator, creator);
         assertEq(info.secondaryRoyaltyBps, 500);
         assertFalse(info.isDerivative);
     }
-
+    // 申请IP 来 铸造二创测试
     function test_MintDerivative() public {
         // 先铸造原作
         vm.prank(creator);
         uint256 parentId = comicNFT.mint(creator, IPFS_URI, 500, 500, false, 0);
 
-        // 铸造二创
+        // 1. 创作者向二创作者发起授权申请
+        vm.prank(derCreator);
+        uint256 licenseId = comicNFT.requestLicense{value: 0.01 ether}(
+            parentId, 500, true, uint64(block.timestamp + 30 days)
+        );
+
+        // 2. 原创作者审核通过
+        vm.prank(creator);
+        comicNFT.reviewLicense(licenseId, true);
+
+        // 3. 铸造二创
         vm.prank(derCreator);
         uint256 derTokenId = comicNFT.mint(
             derCreator, "ipfs://derivative", 500, 500, true, parentId
@@ -131,7 +141,7 @@ contract ComicMarketTest is Test {
     // ════════════════════════════════════════════════════════════════
     // 市场交易测试
     // ════════════════════════════════════════════════════════════════
-
+    // 铸造并上架测试
     function _mintAndList() internal returns (uint256 tokenId, uint256 listingId) {
         vm.prank(creator);
         tokenId = comicNFT.mint(creator, IPFS_URI, 500, 500, false, 0);
@@ -141,35 +151,36 @@ contract ComicMarketTest is Test {
         listingId = marketplace.list(address(comicNFT), tokenId, SECONDARY_PRICE, address(0));
         vm.stopPrank();
     }
-
+    // 上架并购买测试
     function test_ListAndBuy() public {
         (uint256 tokenId, uint256 listingId) = _mintAndList();
 
         // uint256 creatorBalBefore  = address(creator).balance;
         // uint256 treasuryBalBefore = address(treasury).balance;
-
+        // 买家购买
         vm.prank(collector);
         marketplace.buy{value: SECONDARY_PRICE}(listingId);
-
-        // NFT 已转给买家
+  
+        // NFT 是否已转给买家
         assertEq(comicNFT.ownerOf(tokenId), collector);
 
         // 验证版税分配到 RoyaltySplitter 的 pendingWithdrawals
         // 平台费 2.5% = 0.05 ETH
         uint256 expectedPlatformFee = (SECONDARY_PRICE * 250) / 10_000;
+        uint256 expectedCreatorRoyalty = (SECONDARY_PRICE * 500) / 10_000;
+        uint256 expectedSellerProceeds = SECONDARY_PRICE - expectedPlatformFee - expectedCreatorRoyalty;
+
         assertEq(
             splitter.pendingWithdrawals(treasury, address(0)),
             expectedPlatformFee
         );
 
-        // 创作者二级版税 5% = 0.1 ETH
-        uint256 expectedCreatorRoyalty = (SECONDARY_PRICE * 500) / 10_000;
         assertEq(
             splitter.pendingWithdrawals(creator, address(0)),
-            expectedCreatorRoyalty
+            expectedSellerProceeds + expectedCreatorRoyalty
         );
     }
-
+    // 购买自己的 NFT 测试
     function test_BuyRevertsOnSelfPurchase() public {
         (, uint256 listingId) = _mintAndList();
 
@@ -177,7 +188,7 @@ contract ComicMarketTest is Test {
         vm.expectRevert(Errors.SelfPurchase.selector);
         marketplace.buy{value: SECONDARY_PRICE}(listingId);
     }
-
+    // 取消上架测试
     function test_CancelListing() public {
         (, uint256 listingId) = _mintAndList();
 
@@ -187,7 +198,7 @@ contract ComicMarketTest is Test {
         DataTypes.Listing memory listing = marketplace.getListing(listingId);
         assertFalse(listing.active);
     }
-
+    // 批量购买测试（最大 10 个）
     function test_BatchBuyMaxSize() public {
         uint256[] memory ids = new uint256[](11);
         vm.prank(collector);
@@ -238,7 +249,8 @@ contract ComicMarketTest is Test {
 
         // 2. 贡献者申请
         vm.prank(fan);
-        bountyBoard.applyBounty(bountyId);
+        uint256 deposit = reward / 10;
+        bountyBoard.applyBounty{value: deposit}(bountyId);
 
         // 3. 指定中标者
         vm.prank(creator);
@@ -253,8 +265,8 @@ contract ComicMarketTest is Test {
         vm.prank(creator);
         bountyBoard.approveBounty(bountyId);
 
-        // 奖金到账
-        assertEq(address(fan).balance, fanBalBefore + reward);
+        // 奖金 + 保证金 到账
+        assertEq(address(fan).balance, fanBalBefore + reward + deposit);
 
         DataTypes.BountyTask memory task = bountyBoard.getBounty(bountyId);
         assertEq(uint8(task.status), uint8(DataTypes.BountyStatus.Completed));
@@ -270,8 +282,9 @@ contract ComicMarketTest is Test {
             uint64(block.timestamp + 7 days), review, "ipfs://req"
         );
 
+        uint256 deposit = reward / 10;
         vm.prank(fan);
-        bountyBoard.applyBounty(bountyId);
+        bountyBoard.applyBounty{value: deposit}(bountyId);
         vm.prank(creator);
         bountyBoard.assignBounty(bountyId, fan);
         vm.prank(fan);
@@ -284,7 +297,7 @@ contract ComicMarketTest is Test {
         vm.prank(fan);
         bountyBoard.claimByTimeout(bountyId);
 
-        assertEq(address(fan).balance, fanBal + reward);
+        assertEq(address(fan).balance, fanBal + reward + deposit);
     }
 
     // ════════════════════════════════════════════════════════════════

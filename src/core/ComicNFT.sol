@@ -206,7 +206,8 @@ contract ComicNFT is
         uint64  expiresAt
     ) external payable tokenExists(parentTokenId) returns (uint256 licenseId) {
         // 计算并锁定保证金（授权费的 20%），意味着在调用此函数时需要支付一定的 ETH（abr链的原生代币） 作为保证金，防止恶意申请
-        // 授权费=（预期二创作品销售额 * 版税比例）的20%，这个数值可以根据实际情况调整，既要足够高以防止垃圾申请，又不能过高以免阻碍正常的授权需求。
+        // 授权费是动态的=（预期二创作品销售额 * 版税比例）的20%，这个数值可以根据实际情况调整，既要足够高以防止垃圾申请，又不能过高以免阻碍正常的授权需求。
+ 
         uint256 deposit = msg.value;
 
         licenseId = _nextLicenseId++;
