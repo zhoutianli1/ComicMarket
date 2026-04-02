@@ -19,7 +19,7 @@ library PercentageMath {
 
     /// @notice 验证所有分成之和不超过 100%
     function validateBpsSum(uint16[] memory bpsArray) internal pure returns (bool) {
-        uint256 total;
+        uint256 total = 0;
         for (uint256 i; i < bpsArray.length; ++i) {
             total += bpsArray[i];
         }

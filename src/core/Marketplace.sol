@@ -209,7 +209,7 @@ contract Marketplace is
     }
 
     // ─── 三、出价 ────────────────────────────────────────────────────────────
-    //用户出价是通过 msg.value 发送 ETH，或通过 bidERC20 函数发送 ERC20 代币
+    //用户出价是通过 msg.value 发送 ETH，
     // 代币的一致性不必须一致 。出价是一种“议价”行为。即便卖家挂单 1 ETH，买家也可以尝试用 2500 USDC 进行出价。只要卖家认为这个价格合适并调用 acceptOffer ，交易就可以成交
     /// @notice 对某个挂单出价（ERC20 只需授权，ETH 直接发送）
     function makeOffer(
@@ -221,7 +221,7 @@ contract Marketplace is
         if (amount == 0) revert Errors.ZeroAmount();
         if (expiredAt <= block.timestamp) revert Errors.InvalidParameter("expiredAt");
         if (!supportedPaymentTokens[paymentToken]) revert Errors.InvalidParameter("paymentToken");
-
+        //只有在paymentToken为ETH时，才需要检查msg.value是否足够，当是ERC20时，直接授权即可
         if (paymentToken == address(0)) {
             if (msg.value < amount) revert Errors.InsufficientPayment(msg.value, amount);
         }
@@ -261,7 +261,7 @@ contract Marketplace is
             offer.amount,
             offer.paymentToken,
             offerBidder,
-            true // isPrepaid: 资金已在 makeOffer 时存入合约（ETH）或授权（ERC20）
+            offer.paymentToken == address(0) // isPrepaid: ETH 已在 makeOffer 时存入，ERC20 仅授权。需从买家扣款
         );
 
         emit Sale(listingId, offerBidder, offer.amount, 0, 0, 0, 0);
@@ -421,9 +421,11 @@ contract Marketplace is
         uint256 platformFee,
         uint256 sellerProceeds
     ) {
+        //Eth支付，分为预付和实时支付两种情况
         if (paymentToken == address(0)) {
             // ETH 支付
-            if (isPrepaid) {
+            if (isPrepaid) 
+            {
                 // 预付模式：资金已在本合约中（来自 makeOffer 或 bid）
                 (creatorRoyalty, derivativeRoyalty, platformFee, sellerProceeds) = IRoyaltySplitter(royaltySplitter).distribute{value: saleAmount}(
                     tokenId, nftContract, seller, saleAmount, address(0)
@@ -443,8 +445,8 @@ contract Marketplace is
                     if (!ok) revert Errors.TransferFailed(buyer, excess);
                 }
             }
-        } else {
-            // ERC20 支付：无论是预付还是实时，均需从相应方扣款并转入 splitter
+        } else // ERC20 支付：，均需从相应方扣款并转入 splitter
+        {
             // 注意：如果是 Offer，买家已在 makeOffer 时授权；如果是拍卖，买家已在 bid 时转入本合约
             address payer = isPrepaid ? address(this) : buyer;
             

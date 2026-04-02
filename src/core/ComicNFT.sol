@@ -228,7 +228,7 @@ contract ComicNFT is
     }
 
     /// @notice 原作者审核授权申请
-    function reviewLicense(uint256 licenseId, bool approve)
+    function reviewLicense(uint256 licenseId, bool isApproved)
         external
     {
         DataTypes.LicenseGrant storage grant = _licenses[licenseId];
@@ -238,7 +238,7 @@ contract ComicNFT is
         DataTypes.ComicInfo storage info = _comicInfo[grant.parentTokenId];
         if (info.creator != msg.sender) revert Errors.Unauthorized();
 
-        if (approve) {
+        if (isApproved) {
             grant.status    = DataTypes.LicenseStatus.Approved;
             grant.grantedAt = uint64(block.timestamp);
             emit LicenseApproved(licenseId, grant.parentTokenId, grant.licensee);

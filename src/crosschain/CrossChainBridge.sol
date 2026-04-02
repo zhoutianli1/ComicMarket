@@ -145,7 +145,7 @@ contract CrossChainBridge is
             }
         } else {
             IERC20(feeToken).safeTransferFrom(msg.sender, address(this), fee);
-            IERC20(feeToken).approve(address(ccipRouter), fee);
+            IERC20(feeToken).forceApprove(address(ccipRouter), fee);
             messageId = ccipRouter.ccipSend(targetChainSelector, ccipMsg);
         }
 
@@ -206,7 +206,7 @@ contract CrossChainBridge is
             }
         } else {
             IERC20(feeToken).safeTransferFrom(msg.sender, address(this), fee);
-            IERC20(feeToken).approve(address(ccipRouter), fee);
+            IERC20(feeToken).forceApprove(address(ccipRouter), fee);
             messageId = ccipRouter.ccipSend(targetChainSelector, ccipMsg);
         }
 
@@ -290,7 +290,7 @@ contract CrossChainBridge is
         uint24  fee
     ) external whenNotPaused returns (uint256 amountOut) {
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
-        IERC20(tokenIn).approve(address(uniswapRouter), amountIn);
+        IERC20(tokenIn).forceApprove(address(uniswapRouter), amountIn);
 
         amountOut = uniswapRouter.exactInputSingle(
             IUniswapRouter.ExactInputSingleParams({

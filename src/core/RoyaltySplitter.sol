@@ -183,19 +183,30 @@ contract RoyaltySplitter is
     /// @notice 批量提取多种代币
     function batchWithdraw(address[] calldata paymentTokens) external nonReentrant {
         uint256 length = paymentTokens.length;
+        uint256[] memory amounts = new uint256[](length);
+
+        // 1. 先记录并清零所有待提款金额 (Check-Effect)
         for (uint256 i; i < length; ) {
             address token = paymentTokens[i];
             uint256 amount = pendingWithdrawals[msg.sender][token];
             if (amount != 0) {
+                amounts[i] = amount;
                 pendingWithdrawals[msg.sender][token] = 0;
+            }
+            unchecked { ++i; }
+        }
 
+        // 2. 再统一进行外部转账 (Interaction)
+        for (uint256 i; i < length; ) {
+            uint256 amount = amounts[i];
+            if (amount != 0) {
+                address token = paymentTokens[i];
                 if (token == address(0)) {
                     (bool ok,) = payable(msg.sender).call{value: amount}("");
                     if (!ok) revert Errors.TransferFailed(msg.sender, amount);
                 } else {
                     IERC20(token).safeTransfer(msg.sender, amount);
                 }
-
                 emit Withdrawn(msg.sender, token, amount);
             }
             unchecked { ++i; }
