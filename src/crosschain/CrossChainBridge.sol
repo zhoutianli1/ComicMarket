@@ -99,9 +99,7 @@ contract CrossChainBridge is
         if (bridgeLocks[tokenId].owner != address(0) && !bridgeLocks[tokenId].released)
             revert Errors.TokenAlreadyLocked(tokenId);
 
-        // ── 锁定 NFT（转入本合约）──
-        nft.transferFrom(msg.sender, address(this), tokenId);
-
+        // ── Effects: 先更新内部状态，标记锁定 ──
         bridgeLocks[tokenId] = DataTypes.BridgeLock({
             owner:         msg.sender,
             tokenId:       tokenId,
@@ -110,9 +108,11 @@ contract CrossChainBridge is
             released:      false
         });
 
-        // ── 构造跨链消息 ──
-        // 读取 NFT 元数据（从本链 NFT 合约）
-        // 注意：此处调用外部合约，已在锁定后执行（CEI 模式）
+        // ── Interactions: 再执行外部调用 ──
+        // 1. 锁定 NFT（转入本合约）
+        nft.transferFrom(msg.sender, address(this), tokenId);
+
+        // 2. 构造跨链消息 (包含对外部 NFT 合约的读取)
         bytes memory msgData = abi.encode(DataTypes.CrossChainMessage({
             messageType:         DataTypes.CrossChainMessageType.Mint,
             tokenId:             tokenId,
